@@ -47,6 +47,7 @@ export function buildAdzunaSearchUrl(params: AdzunaSearchParams): string {
   });
 
   if (params.what) search.set("what", params.what);
+  if (params.whatOr) search.set("what_or", params.whatOr);
   if (params.whatExclude) search.set("what_exclude", params.whatExclude);
   if (params.where) search.set("where", params.where);
   if (params.distanceKm != null) search.set("distance", String(params.distanceKm));

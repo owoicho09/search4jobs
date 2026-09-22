@@ -3,6 +3,7 @@ import type { AdzunaCountryCode } from "@/lib/adzuna/countries";
 export interface AdzunaSearchParams {
   country: AdzunaCountryCode;
   what?: string;
+  whatOr?: string;
   whatExclude?: string;
   where?: string;
   distanceKm?: number;

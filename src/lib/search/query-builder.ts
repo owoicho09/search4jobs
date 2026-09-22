@@ -30,7 +30,11 @@ export function buildAdzunaParamsFromProfile(
 
   return {
     country: profile.preferredCountry,
-    what: profile.preferredTitles.length ? profile.preferredTitles.join(" ") : undefined,
+    // `what_or` (any keyword matches) rather than `what` (every keyword must
+    // co-occur in one listing) — a profile with several distinct target
+    // titles (e.g. "software engineer" and "ai engineer") would otherwise
+    // require an impossible listing containing every word from every title.
+    whatOr: profile.preferredTitles.length ? profile.preferredTitles.join(" ") : undefined,
     where: profile.preferredLocation ?? undefined,
     salaryMin: profile.salaryMin ?? undefined,
     salaryMax: profile.salaryMax ?? undefined,
