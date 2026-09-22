@@ -17,8 +17,6 @@ export interface RunSearchFormState {
   result?: RunSearchResult;
 }
 
-const initialState: RunSearchFormState = {};
-
 export async function runSearchAction(
   _prevState: RunSearchFormState,
   formData: FormData
@@ -63,5 +61,3 @@ export async function runSearchAction(
     return { error: "Something went wrong running that search. No credits were charged — please try again." };
   }
 }
-
-export { initialState as runSearchInitialState };

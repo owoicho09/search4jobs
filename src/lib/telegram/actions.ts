@@ -14,8 +14,6 @@ export interface TelegramFormState {
   webhookRegistered?: boolean;
 }
 
-const initialState: TelegramFormState = {};
-
 export async function connectTelegramBotAction(
   _prevState: TelegramFormState,
   formData: FormData
@@ -57,5 +55,3 @@ export async function disconnectTelegramBotAction(): Promise<TelegramFormState> 
   revalidatePath("/dashboard");
   return { success: true };
 }
-
-export { initialState as telegramInitialState };
