@@ -1,0 +1,922 @@
+# Claude Code — Full Product Brief & End-to-End Implementation Prompt
+
+Below is the complete build brief. It defines the product, user experience, integrations, credit system, Telegram bot behaviour, security expectations, and what “done” means.
+
+You can paste it into Claude Code from the root of your project.
+
+---
+
+# PROJECT: AI JOB SEARCH & MATCHING SAAS
+
+## 1. Product context and objective
+
+We are building an AI-powered job-search platform that helps users discover relevant job opportunities based on their professional profile, CV, skills, and job preferences.
+
+Users will interact with the platform through two connected interfaces:
+
+1. A web-based SaaS dashboard.
+2. Their own Telegram bot, which they create through Telegram’s BotFather and connect to their SaaS account.
+
+The platform provides the underlying job-search and matching infrastructure. Users should not need to manage API credentials for Adzuna or OpenAI, write code, or configure webhooks.
+
+The initial job data provider is **Adzuna**. OpenAI will be used to evaluate job relevance and match listings to the user’s profile.
+
+The intended stack is:
+
+* Next.js for the web application and server-side functionality.
+* Supabase for authentication, PostgreSQL, and file storage.
+* Vercel for hosting.
+* Telegram Bot API for bot connections and interactions.
+* Adzuna for job listings.
+* OpenAI for AI-based job matching.
+
+Inspect the existing repository and use its current structure, framework conventions, dependencies, and design system where appropriate. Do not blindly replace existing work.
+
+### The intended outcome
+
+A user should be able to:
+
+* Create an account and sign in.
+* Set up their professional profile.
+* Upload and manage their CV.
+* Define job-search preferences.
+* Search for jobs and receive relevant results.
+* Save jobs and revisit previous matches.
+* Connect their own Telegram bot.
+* Search for jobs through that bot.
+* View and manage credits.
+* Buy credit packs.
+* Subscribe when a subscription plan is configured.
+
+The dashboard and Telegram bot must share the same account, profile, preferences, saved jobs, match history, and credit balances.
+
+This is a focused job-search product. It is not a generic chatbot, a job-posting marketplace, or a general-purpose Telegram bot builder.
+
+---
+
+# 2. User accounts and onboarding
+
+Build a complete authentication and onboarding experience using Supabase Auth.
+
+Users should be able to register, sign in, sign out, and access protected dashboard routes.
+
+After registration, guide the user through a concise profile setup.
+
+### Professional profile fields
+
+Include fields such as:
+
+* Full name.
+* Professional headline or target role.
+* Professional summary.
+* Skills.
+* Experience level.
+* Years of experience, where useful.
+* Preferred job titles and keywords.
+* Preferred country and location.
+* Work arrangement preference: remote, hybrid, or on-site.
+* Employment type preferences, where supported by the provider.
+
+Users should be able to edit their profile later.
+
+Do not require unnecessary personal information. The platform should remain useful to someone who has not yet uploaded a CV.
+
+Explain that a completed profile and CV can improve matching, but do not block basic use without them.
+
+---
+
+# 3. Credit system and business model
+
+The credit system is a core part of the product. Implement it carefully and enforce it on the server.
+
+## Free users
+
+A free user receives:
+
+**5 credits per day.**
+
+One credit represents one job successfully delivered to the user.
+
+Daily free credits:
+
+* Reset daily.
+* Do not roll over.
+* Must not be repeatedly granted because a user refreshes the page or changes devices.
+
+## Subscribers
+
+A subscription replaces the standard five-credit free daily allowance.
+
+Subscribers receive the daily allowance defined by their subscription plan.
+
+Unused daily subscription allowance does not roll over.
+
+Subscription prices and allowances are not finalized, so make them configurable. Do not invent a successful subscription purchase when no billing provider is configured.
+
+When a subscription expires or is cancelled, apply the appropriate entitlement based on the actual subscription status.
+
+## Purchased credit packs
+
+Implement these initial credit packs:
+
+| Pack     |  Price | Credits |
+| -------- | -----: | ------: |
+| Starter  | ₦1,000 |       5 |
+| Standard | ₦3,000 |      20 |
+| Large    | ₦5,000 |      40 |
+
+These are the initial product values. Prices and credit quantities should be stored as configurable product records rather than scattered hardcoded values.
+
+Purchased credits:
+
+* Remain available until used.
+* Do not expire at the daily reset.
+* Must be tracked separately from daily allowance credits.
+
+## Credit consumption rules
+
+* One credit is deducted per job successfully delivered.
+* Do not charge for listings merely retrieved from Adzuna.
+* Do not charge for candidates evaluated internally by OpenAI.
+* Do not charge for failed searches.
+* Do not charge for jobs that were not delivered.
+* If fewer suitable jobs are found than requested, charge only for the jobs actually delivered.
+* If no suitable jobs are found, do not deduct credits.
+* A failed integration must not cause an accidental deduction.
+* Prevent duplicate charges from repeated clicks, concurrent requests, retries, or duplicate Telegram updates.
+
+The backend must be the source of truth for balances and entitlements. Never trust a credit balance, price, subscription status, or credit quantity supplied by the browser.
+
+Track daily allowance grants, purchased credits, spending, and adjustments through an auditable ledger or equivalent transaction model.
+
+Use atomic database operations, transactions, or suitable Postgres RPC functions to prevent race conditions and double spending.
+
+### Credit source priority
+
+Implement a consistent, documented spending order. A sensible default is to consume the expiring daily allowance first, then purchased credits. Keep the accounting clear so the user can see the distinction.
+
+---
+
+# 4. Job-search experience
+
+The platform should let users search for jobs using their saved preferences.
+
+A search should follow this general process:
+
+1. Validate the search request.
+2. Check the user’s account, credits, and plan limits.
+3. Determine how many jobs the user wants returned.
+4. Construct a suitable Adzuna query.
+5. Retrieve a bounded set of candidate listings.
+6. Normalize and deduplicate the candidates.
+7. Apply inexpensive deterministic filters.
+8. Evaluate relevant candidates with OpenAI.
+9. Rank qualifying jobs.
+10. Deliver the requested number where possible.
+11. Persist the search and delivered matches.
+12. Deduct credits only for jobs successfully delivered.
+
+The system must not retrieve an arbitrary number of listings and discard most of them without considering provider usage and AI costs.
+
+However, it may need to evaluate more candidates than the number ultimately delivered. Make this a controlled, bounded process.
+
+## Search quantity selection
+
+Users should choose how many jobs they want returned.
+
+Offer configurable choices such as:
+
+* 3 jobs.
+* 5 jobs.
+* 10 jobs.
+
+Only show quantities permitted by the user’s available credits and plan limits.
+
+If a user has insufficient credits for a requested quantity, offer an affordable option or a clear path to purchase more credits.
+
+The user should understand how many credits the requested search may consume before starting it.
+
+Do not charge for internal candidate listings. Charge only for jobs delivered.
+
+## Search results
+
+Each result should display, where available:
+
+* Job title.
+* Company.
+* Location.
+* Work arrangement.
+* Employment type.
+* Salary information.
+* Posting date.
+* Concise description or summary.
+* AI relevance explanation.
+* Original listing link.
+
+Use the provider-supplied original listing URL where available.
+
+Do not fabricate job listings, salaries, employers, or descriptions.
+
+Make it clear that listings originate from external sources and that users should verify details on the original listing.
+
+Do not describe an AI relevance score as a probability of getting hired or a guarantee of suitability.
+
+---
+
+# 5. Adzuna integration
+
+Adzuna is the initial job data provider.
+
+Keep the integration in a server-only provider module. Credentials must never be exposed to client-side code.
+
+The API documentation supplied for this project identifies the following endpoint pattern:
+
+`https://api.adzuna.com/v1/api/jobs/{country}/search/{page}`
+
+The supplied documentation lists parameters including:
+
+* `results_per_page`
+* `what`
+* `what_and`
+* `what_phrase`
+* `what_or`
+* `what_exclude`
+* `title_only`
+* `where`
+* `distance`
+* `location0` through `location7`
+* `max_days_old`
+* `category`
+* `sort_dir`
+* `sort_by`
+* `salary_min`
+* `salary_max`
+* `salary_include_unknown`
+* `full_time`
+* `part_time`
+* `contract`
+* `permanent`
+* `company`
+
+**Verify the current official Adzuna documentation before implementing the adapter.** Confirm authentication, parameter names, response fields, supported countries, limits, and applicable usage terms.
+
+Do not assume Nigeria is supported merely because the product is intended for Nigerian users. Handle unsupported countries gracefully and clearly communicate which locations are currently supported.
+
+Do not promise remote-job coverage unless it is verified.
+
+## Candidate retrieval and internal usage controls
+
+Implement:
+
+* Bounded candidate retrieval.
+* Pagination only when justified.
+* Deduplication by provider and provider job ID, with a fallback fingerprint if necessary.
+* Rate limiting.
+* Backoff for transient provider failures.
+* Handling for provider quota exhaustion.
+* Configurable candidate limits.
+* Configurable AI evaluation limits.
+* Caching only where appropriate and permitted by Adzuna’s terms.
+
+Adzuna’s documented response may contain only a snippet of the job description. Do not assume a complete job description is available.
+
+Preserve any source attribution required by the provider’s terms.
+
+Keep provider-specific logic isolated so another provider can potentially be added later without rewriting the entire application.
+
+---
+
+# 6. OpenAI job matching
+
+Use OpenAI to evaluate how relevant a job is to the user’s profile and preferences.
+
+The model should consider available information such as:
+
+* Target role and keywords.
+* Skills.
+* Professional experience.
+* Experience level.
+* Location and work arrangement.
+* Employment type.
+* CV-derived information, if CV parsing is actually implemented.
+* Available job title, company, description, and other listing fields.
+
+Use a low-cost model configurable through an environment variable.
+
+Do not hardcode a model choice throughout the application.
+
+## Matching pipeline
+
+Use inexpensive deterministic filtering before invoking the model.
+
+Then:
+
+* Send only the candidate data necessary for evaluation.
+* Request structured output.
+* Validate the response against a schema.
+* Reject malformed or unusable responses safely.
+* Rank qualifying jobs.
+* Return concise, evidence-based explanations.
+
+Treat job listing text as untrusted input. The model must not follow instructions embedded in job descriptions or other external listing content.
+
+Make the relevance threshold and candidate-evaluation limits configurable.
+
+Handle OpenAI rate limits, errors, timeouts, and malformed responses gracefully.
+
+The matching service must not claim certainty or guarantee that the user will get an interview or job.
+
+---
+
+# 7. Telegram bot integration
+
+Telegram integration is a major feature of the product.
+
+## One user, one bot
+
+For the MVP:
+
+**One SaaS account can connect one Telegram bot.**
+
+Users create their own bots using Telegram’s BotFather.
+
+They then paste the BotFather token into the SaaS dashboard.
+
+The platform handles the connection and configuration.
+
+Users should not need to:
+
+* Write bot code.
+* Configure webhooks manually.
+* Supply Adzuna credentials.
+* Supply OpenAI credentials.
+* Manage the platform’s internal job-search infrastructure.
+
+## Connection flow
+
+Implement this flow:
+
+1. User opens Telegram Integration in the dashboard.
+2. The UI explains how to create a bot using BotFather.
+3. User pastes their bot token.
+4. The server validates the token using Telegram’s `getMe` method.
+5. The server checks that the bot is not already connected to another account.
+6. The server securely stores the token.
+7. The server associates the bot with the authenticated SaaS user.
+8. The server registers the webhook.
+9. The dashboard displays the actual connection status and bot username.
+10. The user can disconnect or replace the bot.
+
+Do not show a successful connection state unless Telegram confirms it.
+
+## Token security
+
+Bot tokens are sensitive credentials.
+
+* Never expose a stored token to the browser after submission.
+* Never place tokens in client-side code.
+* Never log tokens.
+* Encrypt tokens at rest using a server-side encryption key or another appropriate secure secret-storage mechanism.
+* Keep encryption keys in environment configuration.
+* Validate and sanitize all token-management requests.
+* Prevent one bot token from being associated with multiple accounts.
+* Handle token replacement and disconnection safely.
+* Document the implications of encryption-key rotation.
+
+Do not use the bot token as the sole authorization mechanism for unrelated user data. Every incoming bot update must be mapped to the correct connected bot and SaaS account.
+
+## Webhook architecture
+
+Use Telegram webhooks for production rather than requiring a continuously running polling process.
+
+Implement a secure webhook route that:
+
+* Validates Telegram’s webhook secret token through the `X-Telegram-Bot-Api-Secret-Token` header.
+* Resolves the correct connected bot and account.
+* Handles messages and callback queries defensively.
+* Acknowledges callback queries promptly.
+* Handles duplicate updates idempotently.
+* Avoids duplicate credit deductions.
+* Avoids unbounded AI work inside a webhook request.
+* Uses a suitable background-processing approach if supported by the project and hosting environment.
+* Otherwise uses bounded processing with clear timeout and retry behaviour.
+* Does not leak one user’s data to another user.
+
+The platform should respond promptly to Telegram. If a job search takes time, acknowledge the interaction, show a working message, and then deliver results.
+
+Document any remaining limitations related to serverless execution, queues, retries, or processing time.
+
+---
+
+# 8. Telegram bot menu and interactions
+
+The platform provides the bot’s menu and behaviour. Users do not build arbitrary menus.
+
+Use clear button-based interactions. Natural-language understanding is not required for the MVP.
+
+Implement the following menu:
+
+| Button             | Behaviour                                             |
+| ------------------ | ----------------------------------------------------- |
+| 🔎 Find Jobs       | Start a search using the user’s saved preferences     |
+| ⚙️ Job Preferences | View and update job-search preferences                |
+| 📄 My CV           | Show CV status and link to manage it in the dashboard |
+| 💼 My Matches      | Display recent matches                                |
+| ⭐ Saved Jobs       | Display saved listings                                |
+| 🪙 My Credits      | Show available daily and purchased credits            |
+| ➕ Get More Credits | Open the SaaS credit purchase page                    |
+| 🌐 Open Dashboard  | Open the SaaS dashboard                               |
+
+### Find Jobs
+
+When the user taps Find Jobs:
+
+1. Ask how many jobs they want.
+2. Offer only quantities allowed by their current credits and plan.
+3. Show a useful insufficient-credit message when necessary.
+4. Start the search using the shared job-search service.
+5. Show progress if the operation takes time.
+6. Deliver the results with concise details and original listing links.
+7. Explain when fewer jobs qualify than requested.
+8. Do not charge for undelivered jobs.
+
+### Job Preferences
+
+Provide guided button-based interactions for preferences.
+
+For fields that require text, such as keywords or role names:
+
+* Prompt the user for the value.
+* Validate it.
+* Save it to their SaaS account.
+* Provide cancel and back options.
+* Confirm when the update succeeds.
+
+The bot and dashboard must always use the same saved preferences.
+
+### My CV
+
+Show whether a CV is present and provide a secure link to manage it through the dashboard.
+
+Do not send the contents of a private CV into Telegram by default.
+
+### My Matches and Saved Jobs
+
+Provide concise listings and pagination or “more” navigation.
+
+Users should be able to open the original listing. Saved-job actions must update the same records used by the dashboard.
+
+### Credits
+
+Display:
+
+* Remaining daily allowance.
+* Purchased credit balance.
+* Subscription status.
+* Daily reset information.
+
+Never calculate or trust the balance solely in Telegram code. Retrieve it from the authoritative backend.
+
+---
+
+# 9. Dashboard pages
+
+Build a responsive, polished dashboard with the following areas.
+
+## Overview
+
+Show:
+
+* Daily allowance remaining.
+* Purchased credit balance.
+* Subscription status.
+* Recent searches.
+* Recent matches.
+* Telegram connection status.
+* Useful next steps for incomplete onboarding.
+
+Do not fabricate usage statistics or pretend the user has searched when they have not.
+
+## Professional Profile
+
+Allow users to create and edit their professional profile.
+
+## CV Management
+
+Allow users to:
+
+* Upload a CV.
+* Replace a CV.
+* Remove a CV.
+* View its upload status.
+
+Store CVs in private Supabase Storage.
+
+Enforce file type and size limits. Use secure access mechanisms such as signed URLs when needed.
+
+Do not claim to parse CVs unless that capability is implemented and tested.
+
+## Job Preferences
+
+Allow users to manage:
+
+* Keywords and target roles.
+* Country and location.
+* Remote, hybrid, or on-site preferences.
+* Employment type.
+* Optional salary range.
+* Optional freshness filters.
+
+Only expose filters that the integration actually supports.
+
+## Find Jobs
+
+Provide:
+
+* Search criteria.
+* Quantity selection.
+* Credit preview.
+* Loading and progress states.
+* Results.
+* Retry and edit-search paths.
+* Clear no-match and error states.
+
+## My Matches
+
+Show recent delivered jobs, matching explanations, and original listing links.
+
+## Saved Jobs
+
+Allow users to save, unsave, revisit, and open listings.
+
+## Telegram Integration
+
+Provide:
+
+* BotFather setup guidance.
+* Token submission.
+* Validation.
+* Connection status.
+* Bot username and link, where available.
+* Disconnect and replace actions.
+* Clear error messages.
+
+## Credits & Plans
+
+Show:
+
+* Daily allowance.
+* Purchased credit balance.
+* Subscription status.
+* Initial credit packs.
+* Usage history.
+* Purchase history.
+* Subscription plans when configured.
+
+Do not show fake payment confirmations.
+
+## Account Settings
+
+Provide basic account settings, sign-out, and an appropriate account/data deletion path if supported by the chosen design.
+
+---
+
+# 10. Billing and payments
+
+Implement a billing layer that supports the initial credit packs.
+
+Inspect the repository for an existing payment provider integration.
+
+If one exists, use it where appropriate. Otherwise, structure billing behind a provider abstraction and use a suitable provider only when the required credentials and configuration are available.
+
+Do not invent successful transactions.
+
+Credit packs must be purchased at the authoritative server-side price and quantity.
+
+Verify payments server-side before granting credits.
+
+Implement:
+
+* Payment initiation.
+* Payment status handling.
+* Server-side verification.
+* Idempotent webhook processing.
+* Duplicate-event protection.
+* Transaction history.
+* Clear pending, failed, and successful states.
+
+If billing credentials are missing, show that checkout is not configured and continue implementing the rest of the product.
+
+Subscription plans should be configurable, including:
+
+* Plan name.
+* Price.
+* Billing interval.
+* Daily allowance.
+* Feature limits.
+* Active/inactive status.
+
+Do not finalize a subscription price or allowance in code.
+
+---
+
+# 11. Data architecture
+
+Inspect the existing schema before creating new tables.
+
+Design the data model around the following conceptual entities. Names may vary if the implementation is sound:
+
+* User profile.
+* Job preferences.
+* CV metadata.
+* Connected Telegram bot.
+* Search record.
+* Provider listing or permitted cached candidate.
+* Delivered match.
+* Saved job.
+* Credit ledger.
+* Daily allowance grant/usage.
+* Credit pack/product configuration.
+* Subscription.
+* Payment transaction.
+* Payment-provider event.
+* Telegram update/idempotency record.
+* Application configuration.
+
+Use foreign keys, appropriate indexes, uniqueness constraints, and timestamps.
+
+Ensure one connected bot per account and prevent the same bot from being connected to multiple accounts.
+
+Persist only the provider data needed for the product and allowed by the applicable terms.
+
+---
+
+# 12. Security and user-data isolation
+
+Security is a core product requirement.
+
+Implement and verify:
+
+* Supabase Row Level Security for user-owned data.
+* Server-side authorization checks.
+* User-scoped database access.
+* Private CV storage.
+* Secure signed access where appropriate.
+* Server-only service-role usage.
+* Server-only Adzuna, OpenAI, Telegram, and payment credentials.
+* Input validation and reasonable request-size limits.
+* Upload type and size restrictions.
+* Rate limits for expensive or abuse-prone endpoints.
+* Idempotency for credit spending, payments, and Telegram updates.
+* Protection against IDOR and cross-account data access.
+* Protection against concurrent credit spending.
+* Sanitized error messages and logs.
+
+Never trust a client-supplied user ID, bot ownership claim, credit balance, payment status, or price.
+
+Never expose service-role credentials or other server secrets in browser bundles.
+
+Do not log bot tokens, API keys, payment secrets, full CV contents, or unnecessary sensitive profile information.
+
+Use atomic database operations where needed to keep credit and payment records consistent.
+
+---
+
+# 13. Environment variables
+
+Create or update `.env.example` with the variables required by the implementation.
+
+At minimum, consider:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+
+ADZUNA_APP_ID=
+ADZUNA_APP_KEY=
+
+OPENAI_API_KEY=
+OPENAI_MATCHING_MODEL=
+
+TELEGRAM_WEBHOOK_BASE_URL=
+TELEGRAM_WEBHOOK_SECRET=
+BOT_TOKEN_ENCRYPTION_KEY=
+
+PAYMENT_PROVIDER_SECRET_KEY=
+PAYMENT_PROVIDER_PUBLIC_KEY=
+PAYMENT_PROVIDER_WEBHOOK_SECRET=
+```
+
+Use the current Supabase key naming convention if the repository already uses a newer publishable-key format.
+
+Include any additional environment variables genuinely required by the implementation.
+
+Keep `.env` out of version control.
+
+Credentials may be supplied before or after the initial implementation. The application should still render, lint, type-check, and build when integrations are unconfigured.
+
+When credentials are missing:
+
+* Clearly indicate which integration is not configured.
+* Disable only the affected functionality.
+* Do not simulate successful connections or payments.
+* Do not prevent unrelated application features from working.
+
+When credentials are supplied, test the integrations end to end.
+
+---
+
+# 14. Design and user experience
+
+The product should feel like a coherent, trustworthy SaaS.
+
+Use a consistent design system with:
+
+* Clear information hierarchy.
+* Readable typography.
+* Consistent spacing.
+* Responsive layouts.
+* Accessible form controls.
+* Clear buttons and navigation.
+* Loading, empty, success, and error states.
+* Useful validation and feedback.
+* Mobile-friendly dashboard layouts.
+
+Avoid:
+
+* Fake testimonials.
+* Fabricated job listings.
+* Invented metrics.
+* Lorem ipsum in production screens.
+* Excessive decorative elements.
+* Fake success states.
+* Unclear or misleading credit displays.
+
+Use existing project components and conventions where possible. If no design system exists, establish a small and consistent one.
+
+---
+
+# 15. Testing and acceptance criteria
+
+The MVP should not be considered complete merely because the pages render.
+
+## Authentication and data isolation
+
+Verify that:
+
+* Users can register and sign in.
+* Users can complete and edit onboarding.
+* Protected pages require authentication.
+* Users cannot access another user’s profile, CV, preferences, matches, saved jobs, credits, or bot configuration.
+
+## Credit system
+
+Verify that:
+
+* Free users receive five credits daily.
+* Daily grants cannot be duplicated by refreshes or concurrent requests.
+* Subscription allowance replaces the free allowance.
+* Daily resets do not erase purchased credits.
+* Purchased credits remain until used.
+* Credits are deducted only for delivered jobs.
+* Failed searches do not consume credits.
+* Duplicate requests do not cause duplicate charges.
+* Concurrent requests cannot double-spend the same balance.
+
+## Job search
+
+Verify that:
+
+* Adzuna credentials remain server-side.
+* Search requests use supported parameters.
+* Candidate retrieval and AI evaluation are bounded.
+* Duplicate listings are handled appropriately.
+* AI output is validated.
+* No-match and provider-error states work.
+* Results link to original listings.
+* Credit deductions reflect actual delivery.
+
+## Telegram
+
+Verify that:
+
+* Valid bot tokens connect.
+* Invalid tokens are rejected safely.
+* A bot cannot be connected to multiple accounts.
+* One account cannot connect multiple bots.
+* Webhook secret validation works.
+* Duplicate Telegram updates do not duplicate actions or deductions.
+* Menu buttons work.
+* Preferences are shared between the dashboard and bot.
+* Search quantity respects credits and plan limits.
+* Insufficient-credit, no-match, and integration-error states work.
+
+## Billing
+
+Verify that:
+
+* Product prices and credit quantities are authoritative on the server.
+* Credits are granted only after successful server-side payment verification.
+* Duplicate payment events do not grant credits twice.
+* Missing billing configuration produces a clear state rather than a fake checkout.
+
+## Code quality
+
+Run the checks supported by the repository, including:
+
+* Type checking.
+* Linting.
+* Automated tests.
+* Production build.
+
+Fix errors where possible. If a check cannot pass, report the exact failure and its cause rather than claiming success.
+
+---
+
+# 16. Documentation and deployment readiness
+
+Create a useful README that explains:
+
+* Product architecture.
+* Local development setup.
+* Required environment variables.
+* Supabase project configuration.
+* Database migrations and RLS.
+* Storage bucket configuration.
+* Adzuna integration setup.
+* OpenAI integration setup.
+* Telegram bot connection and webhook configuration.
+* Billing configuration.
+* Testing commands.
+* Deployment steps for Vercel.
+* Known limitations and outstanding setup requirements.
+
+Document any manual setup that cannot be automated safely.
+
+Do not claim that the application is deployed, connected, or tested unless that has actually happened.
+
+---
+
+# 17. Implementation expectations
+
+First inspect the repository, including:
+
+* Framework and package manager.
+* Existing routes and components.
+* Existing database schema.
+* Authentication setup.
+* Installed dependencies.
+* Existing environment configuration.
+* Current design conventions.
+* Existing tests.
+
+Preserve useful existing work.
+
+Then implement the product in a coherent sequence:
+
+1. Application foundation and design system.
+2. Authentication and onboarding.
+3. Supabase schema, RLS, and secure data access.
+4. Profile, preferences, and CV management.
+5. Credit ledger, daily allowances, and atomic deductions.
+6. Adzuna integration.
+7. OpenAI matching service.
+8. Search and match dashboard.
+9. Saved jobs.
+10. Telegram token connection and secure storage.
+11. Webhook handling and bot menu workflows.
+12. Credit packs and billing integration.
+13. Error handling, rate limits, and idempotency.
+14. Tests, documentation, and deployment readiness.
+
+This is guidance for implementation order, not permission to stop after scaffolding.
+
+If a credential or external permission is missing, finish the surrounding implementation, make the blocked state explicit, document what is needed, and continue with the remaining work.
+
+Do not stop after producing a plan. Do not ask for approval at every step. Make reasonable engineering decisions, implement the complete MVP, and test it.
+
+---
+
+# 18. Final delivery report
+
+When you finish, report:
+
+1. What you implemented.
+2. Which user journeys work.
+3. Important architectural decisions.
+4. Database schema, migrations, and RLS status.
+5. Required environment variables that still need values.
+6. Integrations tested successfully.
+7. Integrations not tested and why.
+8. Commands and tests run, with actual results.
+9. Vercel deployment steps.
+10. Telegram webhook setup steps.
+11. Any remaining provider, licensing, billing, queue, or runtime limitations.
+12. Any security-sensitive manual setup still required.
+
+Be precise. Do not claim that a feature is complete, tested, connected, or deployed unless it actually is.
+
+## Begin
+
+**Inspect the repository and implement this AI job-search and matching SaaS end to end, following this brief as the product source of truth.**
