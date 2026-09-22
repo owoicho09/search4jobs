@@ -44,7 +44,6 @@ export function buildAdzunaSearchUrl(params: AdzunaSearchParams): string {
     app_id: appId,
     app_key: appKey,
     results_per_page: String(resultsPerPage),
-    content_type: "application/json",
   });
 
   if (params.what) search.set("what", params.what);
@@ -99,6 +98,12 @@ function normalizeEmploymentType(job: AdzunaJob): string | null {
   return parts.length ? parts.join("_") : null;
 }
 
+// Adzuna's predicted salaries (salary_is_predicted) can be non-integer
+// (e.g. 68270.58) — round for storage in integer DB columns.
+function roundSalary(value: number | undefined): number | null {
+  return typeof value === "number" ? Math.round(value) : null;
+}
+
 export function normalizeAdzunaJob(job: AdzunaJob): NormalizedJobCandidate {
   return {
     provider: "adzuna",
@@ -108,8 +113,8 @@ export function normalizeAdzunaJob(job: AdzunaJob): NormalizedJobCandidate {
     location: job.location?.display_name ?? null,
     employmentType: normalizeEmploymentType(job),
     workArrangement: null, // Adzuna doesn't reliably label remote/hybrid/onsite
-    salaryMin: job.salary_min ?? null,
-    salaryMax: job.salary_max ?? null,
+    salaryMin: roundSalary(job.salary_min),
+    salaryMax: roundSalary(job.salary_max),
     descriptionSnippet: job.description ?? null,
     listingUrl: job.redirect_url,
     postedAt: job.created ?? null,
