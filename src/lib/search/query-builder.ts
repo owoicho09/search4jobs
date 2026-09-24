@@ -26,8 +26,6 @@ export function buildAdzunaParamsFromProfile(
     throw new UnsupportedSearchCountryError(profile.preferredCountry);
   }
 
-  const types = new Set(profile.employmentTypes.map((t) => t.toLowerCase()));
-
   return {
     country: profile.preferredCountry,
     // `what_or` (any keyword matches) rather than `what` (every keyword must
@@ -39,10 +37,36 @@ export function buildAdzunaParamsFromProfile(
     salaryMin: profile.salaryMin ?? undefined,
     salaryMax: profile.salaryMax ?? undefined,
     maxDaysOld: profile.maxDaysOld ?? undefined,
-    fullTime: types.has("full_time") || undefined,
-    partTime: types.has("part_time") || undefined,
-    contract: types.has("contract") || undefined,
-    permanent: types.has("permanent") || undefined,
+    ...employmentTypeFilters(profile.employmentTypes),
     sortBy: "relevance",
+  };
+}
+
+const CONTRACT_TIME = new Set(["full_time", "part_time"]);
+const CONTRACT_TYPE = new Set(["permanent", "contract"]);
+
+/**
+ * The user's employment types mean "any of these", but Adzuna's flags don't:
+ * full_time/part_time (contract_time) and permanent/contract (contract_type)
+ * are each single-choice — sending both full_time and part_time is rejected
+ * with a 400 — and the two groups are ANDed together. So a flag is only sent
+ * when the selection is exactly one value from one group; any broader
+ * selection sends no flag, and AI relevance scoring (which sees the
+ * preference) handles it instead of Adzuna over-filtering.
+ */
+export function employmentTypeFilters(
+  employmentTypes: string[]
+): Pick<AdzunaSearchParams, "fullTime" | "partTime" | "contract" | "permanent"> {
+  const types = new Set(employmentTypes.map((t) => t.toLowerCase()));
+  if (types.size !== 1) return {};
+
+  const [only] = types;
+  if (!CONTRACT_TIME.has(only) && !CONTRACT_TYPE.has(only)) return {};
+
+  return {
+    fullTime: only === "full_time" || undefined,
+    partTime: only === "part_time" || undefined,
+    contract: only === "contract" || undefined,
+    permanent: only === "permanent" || undefined,
   };
 }
