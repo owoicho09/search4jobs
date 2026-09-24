@@ -6,12 +6,12 @@ import type { Database } from "@/lib/supabase/types";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-const PROTECTED_PREFIX = "/dashboard";
+const PROTECTED_PREFIXES = ["/dashboard", "/admin"];
 const AUTH_ROUTES = ["/login", "/signup"];
 
 /**
  * Refreshes the Supabase session cookie on every navigation and performs an
- * OPTIMISTIC redirect for signed-out users hitting /dashboard/**. This is not
+ * OPTIMISTIC redirect for signed-out users hitting /dashboard/** or /admin/**. This is not
  * the authorization boundary — every Server Action, Route Handler, and RLS
  * policy re-checks the user independently. See src/lib/auth/dal.ts.
  */
@@ -46,7 +46,7 @@ export async function updateSupabaseSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isProtected = pathname.startsWith(PROTECTED_PREFIX);
+  const isProtected = PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
   const isAuthRoute = AUTH_ROUTES.some((route) => pathname.startsWith(route));
 
   if (isProtected && !user) {

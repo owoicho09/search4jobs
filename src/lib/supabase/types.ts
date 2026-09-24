@@ -387,6 +387,93 @@ export interface Database {
         };
         Returns: { allowed: boolean; remaining: number }[];
       };
+      admin_user_stats: {
+        Args: { p_search?: string | null; p_filter?: string | null; p_user_id?: string | null };
+        Returns: {
+          user_id: string;
+          email: string | null;
+          full_name: string | null;
+          created_at: string;
+          last_sign_in_at: string | null;
+          email_confirmed: boolean;
+          onboarding_completed: boolean;
+          has_cv: boolean;
+          preferred_country: string | null;
+          searches_count: number;
+          telegram_searches_count: number;
+          failed_searches_count: number;
+          last_search_at: string | null;
+          matches_count: number;
+          saved_jobs_count: number;
+          bot_status: "pending" | "connected" | "disconnected" | "error" | null;
+          bot_username: string | null;
+          bot_connected_at: string | null;
+          bot_webhook_registered_at: string | null;
+          bot_last_update_at: string | null;
+          bot_updates_count: number;
+          bot_last_error: string | null;
+          subscription_status: string | null;
+          paid_kobo: number;
+          last_seen_at: string | null;
+        }[];
+      };
+      admin_totals: {
+        Args: Record<string, never>;
+        Returns: {
+          total_users: number;
+          new_users_7d: number;
+          new_users_30d: number;
+          active_users_7d: number;
+          active_users_30d: number;
+          onboarded_users: number;
+          users_with_cv: number;
+          bots_total: number;
+          bots_connected: number;
+          bots_pending: number;
+          bots_error: number;
+          bots_disconnected: number;
+          bots_active_7d: number;
+          telegram_updates_7d: number;
+          searches_total: number;
+          searches_7d: number;
+          searches_dashboard_7d: number;
+          searches_telegram_7d: number;
+          searches_failed_7d: number;
+          searches_no_matches_7d: number;
+          matches_total: number;
+          matches_7d: number;
+          saved_jobs_total: number;
+          active_subscriptions: number;
+          successful_payments: number;
+          revenue_kobo: number;
+          revenue_kobo_30d: number;
+        }[];
+      };
+      admin_daily_activity: {
+        Args: { p_days?: number };
+        Returns: {
+          day: string;
+          signups: number;
+          searches: number;
+          telegram_searches: number;
+          matches: number;
+          telegram_updates: number;
+        }[];
+      };
+      admin_recent_searches: {
+        Args: { p_limit?: number };
+        Returns: {
+          id: string;
+          user_id: string;
+          email: string | null;
+          source: "dashboard" | "telegram";
+          status: "pending" | "completed" | "failed" | "no_matches";
+          requested_count: number;
+          delivered_count: number;
+          error_message: string | null;
+          created_at: string;
+        }[];
+      };
     };
     Enums: Record<string, never>;
   };

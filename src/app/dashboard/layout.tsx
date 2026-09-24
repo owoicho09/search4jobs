@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { DashboardNav } from "@/components/dashboard/nav";
 import { Button } from "@/components/ui/button";
-import { requireAuthUser } from "@/lib/auth/dal";
+import { isAdminUser, requireAuthUser } from "@/lib/auth/dal";
 import { signOutAction } from "@/lib/auth/actions";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -15,6 +15,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
           search4jobs
         </Link>
         <div className="flex items-center gap-3 text-sm text-muted">
+          {isAdminUser(user) && (
+            <Link href="/admin" className="font-medium text-brand">
+              Admin
+            </Link>
+          )}
           <span className="hidden sm:inline">{user.email}</span>
           <form action={signOutAction}>
             <Button type="submit" variant="secondary">

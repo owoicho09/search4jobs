@@ -1,7 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { createSupabaseServerClient, isSupabaseConfigured } from "@/lib/supabase/server";
 
@@ -26,6 +26,32 @@ export async function requireAuthUser() {
   const user = await getAuthUser();
   if (!user) {
     redirect("/login");
+  }
+  return user;
+}
+
+/**
+ * Admins are the emails listed in ADMIN_EMAILS (comma-separated,
+ * case-insensitive). Only verified addresses count, so signing up with an
+ * admin's email without confirming it grants nothing.
+ */
+export function isAdminUser(user: { email?: string | null; email_confirmed_at?: string | null } | null) {
+  if (!user?.email || !user.email_confirmed_at) return false;
+  const allowlist = (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+  return allowlist.includes(user.email.toLowerCase());
+}
+
+/**
+ * Use in every /admin Server Component and Server Action. Non-admins get a
+ * 404 so the admin area's existence isn't advertised.
+ */
+export async function requireAdminUser() {
+  const user = await requireAuthUser();
+  if (!isAdminUser(user)) {
+    notFound();
   }
   return user;
 }
